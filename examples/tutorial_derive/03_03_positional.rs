@@ -1,7 +1,7 @@
 use clap::Parser;
 
 #[derive(Parser)]
-#[clap(author, version, about)]
+#[command(version, about, long_about = None)]
 struct Cli {
     name: Option<String>,
 }

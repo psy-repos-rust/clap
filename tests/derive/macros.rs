@@ -1,6 +1,6 @@
 // Copyright 2018 Guillaume Pinot (@TeXitoi) <texitoi@texitoi.eu>,
 // Kevin Knapp (@kbknapp) <kbknapp@gmail.com>, and
-// Andrew Hobden (@hoverbear) <andrew@hoverbear.org>
+// Ana Hobden (@hoverbear) <operator@hoverbear.org>
 //
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
@@ -22,7 +22,7 @@ fn use_option() {
         ($name:ident: $ty:ty) => {
             #[derive(Parser)]
             struct Outer {
-                #[clap(short, long)]
+                #[arg(short, long)]
                 #[allow(dead_code)]
                 $name: $ty,
             }
@@ -47,7 +47,7 @@ fn issue_447() {
     }
 
     Command! {GitCmd, [
-      #[clap(external_subcommand)]
+      #[command(external_subcommand)]
       Ext(Vec<String>)
     ]}
 }
