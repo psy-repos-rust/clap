@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 <!-- next-header -->
 ## [Unreleased] - ReleaseDate
 
+### Fixes
+
+- *(dynamic/zsh)* Control the sort order, rather than having everything alphabetized
+
 ## [4.6.3] - 2026-04-27
 
 ### Features
