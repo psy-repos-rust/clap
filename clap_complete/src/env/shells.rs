@@ -393,8 +393,8 @@ function _clap_dynamic_completer_NAME() {
                 other+=("$completion")
             fi
         done
-        [[ -n $dirs ]] && _describe 'values' dirs -S '/' -r '/'
-        [[ -n $other ]] && _describe 'values' other
+        [[ -n $dirs ]] && _describe -V 'values' dirs -S '/' -r '/'
+        [[ -n $other ]] && _describe -V 'values' other
     fi
 }
 
