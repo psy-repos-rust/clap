@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 <!-- next-header -->
 ## [Unreleased] - ReleaseDate
 
+### Fixes
+
+- *(dynamic(fish)* Fix corner cases with escaping
+
 ## [4.6.4] - 2026-05-10
 
 ### Fixes
