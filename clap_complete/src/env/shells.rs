@@ -213,9 +213,8 @@ impl EnvCompleter for Fish {
         completer: &str,
         buf: &mut dyn std::io::Write,
     ) -> Result<(), std::io::Error> {
-        let bin = shlex::try_quote(bin).unwrap_or(std::borrow::Cow::Borrowed(bin));
-        let completer =
-            shlex::try_quote(completer).unwrap_or(std::borrow::Cow::Borrowed(completer));
+        let bin = fish_quote(bin);
+        let completer = fish_quote_for_eval(completer);
 
         writeln!(
             buf,
@@ -245,6 +244,62 @@ impl EnvCompleter for Fish {
         }
         Ok(())
     }
+}
+
+/// Quote `s` for embedding inside fish's `--arguments` value.
+///
+/// Fish parses `--arguments` twice: once when sourcing the registration (the
+/// outer double-quoted string) and again when evaluating the embedded command
+/// substitution at completion time. Each special character must therefore
+/// survive two rounds of unescaping, which is what this helper does that
+/// [`fish_quote`] does not.
+fn fish_quote_for_eval(s: &str) -> std::borrow::Cow<'_, str> {
+    if !fish_needs_quoting(s) {
+        return std::borrow::Cow::Borrowed(s);
+    }
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push('\'');
+    for c in s.chars() {
+        match c {
+            '\\' => out.push_str(r"\\\\"),
+            '\'' => out.push_str(r"\\'"),
+            '"' => out.push_str(r#"\""#),
+            '$' => out.push_str(r"\$"),
+            _ => out.push(c),
+        }
+    }
+    out.push('\'');
+    std::borrow::Cow::Owned(out)
+}
+
+/// Quote `s` for fish's first-pass parser.
+///
+/// Used for the `--command` value, where fish reads the token once when
+/// sourcing the registration and never re-evaluates it. Single-quoting plus
+/// escaping `\` and `'` is sufficient.
+fn fish_quote(s: &str) -> std::borrow::Cow<'_, str> {
+    if !fish_needs_quoting(s) {
+        return std::borrow::Cow::Borrowed(s);
+    }
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push('\'');
+    for c in s.chars() {
+        match c {
+            '\\' => out.push_str(r"\\"),
+            '\'' => out.push_str(r"\'"),
+            _ => out.push(c),
+        }
+    }
+    out.push('\'');
+    std::borrow::Cow::Owned(out)
+}
+
+fn fish_needs_quoting(s: &str) -> bool {
+    s.is_empty()
+        || s.chars().any(|c| {
+            !(c.is_ascii_alphanumeric()
+                || matches!(c, '/' | '_' | '-' | '.' | ',' | '+' | '=' | ':' | '@'))
+        })
 }
 
 /// Powershell completion adapter
@@ -463,6 +518,7 @@ impl Zsh {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use snapbox::IntoData as _;
     use snapbox::assert_data_eq;
 
     // This test verifies that fish shell path quoting works with or without spaces in the path.
@@ -502,6 +558,57 @@ mod tests {
         assert_data_eq!(
             script.trim(),
             snapbox::str![r#"complete [..] "([..] '/path with a space/completer' [..])""#]
+        );
+    }
+
+    #[test]
+    #[cfg(all(unix, feature = "unstable-dynamic"))]
+    fn fish_env_completer_path_with_backslash() {
+        let mut buf = Vec::new();
+        Fish.write_registration("V", "n", "/ignored/bin", "/p/dyn\\amic/foo", &mut buf)
+            .expect("write_registration failed");
+        let script = String::from_utf8(buf).expect("Invalid UTF-8");
+        assert_data_eq!(
+            script,
+            snapbox::str![[r#"
+complete --keep-order --exclusive --command /ignored/bin --arguments "(V=fish '/p/dyn\\\\amic/foo' -- (commandline --current-process --tokenize --cut-at-cursor) (commandline --current-token))"
+
+"#]]
+            .raw()
+        );
+    }
+
+    #[test]
+    #[cfg(all(unix, feature = "unstable-dynamic"))]
+    fn fish_env_command_name_with_backslash() {
+        let mut buf = Vec::new();
+        Fish.write_registration("V", "n", "dyn\\amic", "/p/completer", &mut buf)
+            .expect("write_registration failed");
+        let script = String::from_utf8(buf).expect("Invalid UTF-8");
+        assert_data_eq!(
+            script,
+            snapbox::str![[r#"
+complete --keep-order --exclusive --command 'dyn\\amic' --arguments "(V=fish /p/completer -- (commandline --current-process --tokenize --cut-at-cursor) (commandline --current-token))"
+
+"#]]
+            .raw()
+        );
+    }
+
+    #[test]
+    #[cfg(all(unix, feature = "unstable-dynamic"))]
+    fn fish_env_completer_path_with_dollar() {
+        let mut buf = Vec::new();
+        Fish.write_registration("V", "n", "/ignored/bin", "/p/$var/c", &mut buf)
+            .expect("write_registration failed");
+        let script = String::from_utf8(buf).expect("Invalid UTF-8");
+        assert_data_eq!(
+            script,
+            snapbox::str![[r#"
+complete --keep-order --exclusive --command /ignored/bin --arguments "(V=fish '/p/\$var/c' -- (commandline --current-process --tokenize --cut-at-cursor) (commandline --current-token))"
+
+"#]]
+            .raw()
         );
     }
 }
