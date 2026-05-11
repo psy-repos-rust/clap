@@ -463,6 +463,7 @@ impl Zsh {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use snapbox::IntoData as _;
     use snapbox::assert_data_eq;
 
     // This test verifies that fish shell path quoting works with or without spaces in the path.
@@ -502,6 +503,57 @@ mod tests {
         assert_data_eq!(
             script.trim(),
             snapbox::str![r#"complete [..] "([..] '/path with a space/completer' [..])""#]
+        );
+    }
+
+    #[test]
+    #[cfg(all(unix, feature = "unstable-dynamic"))]
+    fn fish_env_completer_path_with_backslash() {
+        let mut buf = Vec::new();
+        Fish.write_registration("V", "n", "/ignored/bin", "/p/dyn\\amic/foo", &mut buf)
+            .expect("write_registration failed");
+        let script = String::from_utf8(buf).expect("Invalid UTF-8");
+        assert_data_eq!(
+            script,
+            snapbox::str![[r#"
+complete --keep-order --exclusive --command /ignored/bin --arguments "(V=fish "/p/dyn\\amic/foo" -- (commandline --current-process --tokenize --cut-at-cursor) (commandline --current-token))"
+
+"#]]
+            .raw()
+        );
+    }
+
+    #[test]
+    #[cfg(all(unix, feature = "unstable-dynamic"))]
+    fn fish_env_command_name_with_backslash() {
+        let mut buf = Vec::new();
+        Fish.write_registration("V", "n", "dyn\\amic", "/p/completer", &mut buf)
+            .expect("write_registration failed");
+        let script = String::from_utf8(buf).expect("Invalid UTF-8");
+        assert_data_eq!(
+            script,
+            snapbox::str![[r#"
+complete --keep-order --exclusive --command "dyn\\amic" --arguments "(V=fish /p/completer -- (commandline --current-process --tokenize --cut-at-cursor) (commandline --current-token))"
+
+"#]]
+            .raw()
+        );
+    }
+
+    #[test]
+    #[cfg(all(unix, feature = "unstable-dynamic"))]
+    fn fish_env_completer_path_with_dollar() {
+        let mut buf = Vec::new();
+        Fish.write_registration("V", "n", "/ignored/bin", "/p/$var/c", &mut buf)
+            .expect("write_registration failed");
+        let script = String::from_utf8(buf).expect("Invalid UTF-8");
+        assert_data_eq!(
+            script,
+            snapbox::str![[r#"
+complete --keep-order --exclusive --command /ignored/bin --arguments "(V=fish '/p/$var/c' -- (commandline --current-process --tokenize --cut-at-cursor) (commandline --current-token))"
+
+"#]]
+            .raw()
         );
     }
 }
